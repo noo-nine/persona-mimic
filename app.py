@@ -3,7 +3,7 @@ import spacy
 from collections import Counter
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from langchain_huggingface import HuggingFaceEndpoint
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 from langchain_core.prompts import (
     ChatPromptTemplate,
     FewShotChatMessagePromptTemplate,
@@ -14,6 +14,8 @@ from langchain_core.prompts import (
 # --- INITIALIZATION ---
 app = Flask(__name__, static_folder='.')
 CORS(app)
+
+# Spacy Model Loader
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
@@ -21,13 +23,19 @@ except OSError:
     os.system("python -m spacy download en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
 
-# Initialize LLM
+# --- LLM CONFIGURATION ---
+# We use ChatHuggingFace to satisfy the "conversational" task requirement
 sec_key = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
-llm = HuggingFaceEndpoint(
+
+llm_base = HuggingFaceEndpoint(
     repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
     huggingfacehub_api_token=sec_key,
-    temperature=0.4
+    temperature=0.4,
+    task="text-generation" # Standard fallback
 )
+
+# This wrapper converts the requests into the 'conversational' format Novita wants
+llm = ChatHuggingFace(llm=llm_base)
 
 # --- ENGINE STATE ---
 engine_memory = {
@@ -91,11 +99,13 @@ def train():
     engine_memory["examples"] = data.get('examples', [])
     if text:
         engine_memory["fingerprint"] = extract_features(text)
-    return jsonify({"status": "Engine Initialized", "style": translate_to_style_guide(engine_memory["fingerprint"])})
+    return jsonify({
+        "status": "Engine Initialized", 
+        "style": translate_to_style_guide(engine_memory["fingerprint"])
+    })
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    # 1. Safety check for training
     if not engine_memory.get("fingerprint"):
         return jsonify({"reply": "⚠️ Engine not trained! Please upload logs first."}), 400
     
@@ -103,21 +113,21 @@ def chat():
         data = request.json
         user_query = data.get('message')
         
-        # 2. Build the prompt using our stored persona
         prompt = build_prompt(engine_memory["fingerprint"], engine_memory["examples"])
         chain = prompt | llm
         
-        # 3. Call the AI
+        # Call the AI
         response = chain.invoke({"input": user_query})
         
-        # 4. SAFE RESPONSE HANDLING
-        # If response is an object, get .content. If it's already a string, use it.
-        final_text = response.content if hasattr(response, 'content') else str(response)
+        # Handle the response content safely
+        if hasattr(response, 'content'):
+            final_text = response.content
+        else:
+            final_text = str(response)
         
         return jsonify({"reply": final_text})
 
     except Exception as e:
-        # This will print the ACTUAL error in your Hugging Face Logs tab
         print(f"ERROR IN CHAT ROUTE: {e}")
         return jsonify({"reply": f"Internal Engine Error: {str(e)}"}), 500
 
