@@ -14,7 +14,12 @@ from langchain_core.prompts import (
 # --- INITIALIZATION ---
 app = Flask(__name__, static_folder='.')
 CORS(app)
-nlp = spacy.load("en_core_web_sm")
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    import os
+    os.system("python -m spacy download en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
 
 # Initialize LLM
 sec_key = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
