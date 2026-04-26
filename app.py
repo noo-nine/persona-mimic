@@ -95,14 +95,31 @@ def train():
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    if not engine_memory["fingerprint"]:
-        return jsonify({"reply": "⚠️ Engine not trained! Please upload data first."})
+    # 1. Safety check for training
+    if not engine_memory.get("fingerprint"):
+        return jsonify({"reply": "⚠️ Engine not trained! Please upload logs first."}), 400
     
-    user_query = request.json.get('message')
-    prompt = build_prompt(engine_memory["fingerprint"], engine_memory["examples"])
-    chain = prompt | llm
-    response = chain.invoke({"input": user_query})
-    return jsonify({"reply": response.content if hasattr(response, 'content') else response})
+    try:
+        data = request.json
+        user_query = data.get('message')
+        
+        # 2. Build the prompt using our stored persona
+        prompt = build_prompt(engine_memory["fingerprint"], engine_memory["examples"])
+        chain = prompt | llm
+        
+        # 3. Call the AI
+        response = chain.invoke({"input": user_query})
+        
+        # 4. SAFE RESPONSE HANDLING
+        # If response is an object, get .content. If it's already a string, use it.
+        final_text = response.content if hasattr(response, 'content') else str(response)
+        
+        return jsonify({"reply": final_text})
+
+    except Exception as e:
+        # This will print the ACTUAL error in your Hugging Face Logs tab
+        print(f"ERROR IN CHAT ROUTE: {e}")
+        return jsonify({"reply": f"Internal Engine Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=7860)
