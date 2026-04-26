@@ -77,7 +77,7 @@ def build_prompt(fp, examples):
 # --- ROUTES ---
 @app.route('/')
 def index():
-    return send_from_directory('.', 'ui.html')
+    return send_from_directory('.', 'index.html')
 
 @app.route('/train', methods=['POST'])
 def train():
