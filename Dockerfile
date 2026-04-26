@@ -1,5 +1,5 @@
 # 1. Use an official Python image
-FROM python:3.9
+FROM python:3.10
 
 # 2. Create a 'user' to run the app (Hugging Face requires this for security)
 RUN useradd -m -u 1000 user
