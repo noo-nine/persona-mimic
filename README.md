@@ -1,2 +1,4 @@
 # persona-mimic
 a model i deployed on huggingface that mimics the linguistic style of a person
+
+model : https://huggingface.co/spaces/noonine/persona-mimic
