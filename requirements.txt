@@ -4,3 +4,5 @@ spacy
 langchain-huggingface
 langchain-core
 langchain-community
+langchain-ollama
+python-dotenv
